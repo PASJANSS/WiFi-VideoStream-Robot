@@ -34,17 +34,39 @@ onMount(() => {
     window.addEventListener('keydown', async (event) => {
         if(inputChars.includes(event.key) && isWsOpened){
             console.log("sending");
-            await ws.send(JSON.stringify({key: event.key}));
+            await ws.send((event.key).toString());
         }
     })
 });
 
 </script>
 
-{#if !robotConnected}
-    Robot is not connected
-{/if}
+<div id="container">
+    {#if !robotConnected}
+        <h1>Robot is not connected</h1>
+    {/if}
 
-{#if robotConnected}
-    <img src="/api/stream" alt="stream"/>
-{/if}
+    {#if robotConnected}
+        <img id="stream" src="/api/stream" alt="stream"/>
+    {/if}
+</div>
+
+<style>
+    :global(body) {
+        font-size: 50px;
+        font-family:Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+        background-color: antiquewhite;
+        overflow: hidden;
+    }
+    #container{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+    #stream{
+        width: 80vw;
+        height: 80vh;
+        object-fit: contain;
+    }
+</style>
