@@ -6,18 +6,20 @@ import asyncio
 isClientConnected = False
 isRobotConnected = False
 robotWs = None
+clientWs = None
 lastFrame = None
 
 #client section
 app = FastAPI()
 @app.websocket("/ws/client")
 async def client_endpoint(ws: WebSocket):
-    global isClientConnected, isRobotConnected
+    global isClientConnected, isRobotConnected, clientWs
 
     if isClientConnected:
         print('only 1 client can connect to server at one moment')
         return
     await ws.accept()
+    clientWs = ws
     isClientConnected = True
 
     try:
@@ -48,6 +50,8 @@ async def clientInput(input):
         return
     await robotWs.send_text(input)
 
+def disconnectClient():
+    clientWs.close()
 
 #robot section
 @app.websocket("/ws/robot")
@@ -62,8 +66,13 @@ async def robot_endpoint(ws: WebSocket):
 
     try:
         while True:
-            lastFrame = await ws.receive_bytes() #odbieram to co robot mi mowi
-            print("got bytes from robot")
+            data = await ws.receive();
+            if "bytes" in data:
+                lastFrame = await ws.receive_bytes() #odbieram to co robot mi mowi
+            elif "text" in data:
+                message = data["text"]
+                if message == "disconnect":
+                    disconnectClient()
     except WebSocketDisconnect:
         isRobotConnected = False
         robotWs = None
