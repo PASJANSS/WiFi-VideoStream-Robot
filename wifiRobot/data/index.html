@@ -13,9 +13,6 @@
                 Insert network password: <input id="networkPasswordInput">
             </div>
             <div class="wrapper">
-                Insert robot password: <input id="robotPasswordInput">
-            </div>
-            <div class="wrapper">
                 <button id="submitButton" onclick="SubmitButtonClicked()">Submit</button>
             </div>
             <div class="wrapper">
@@ -32,9 +29,9 @@
         }
         ShowMessage(false);
 
-        async function SendQuery(ssid, networkPassword, robotPassword){
+        async function SendQuery(ssid, networkPassword){
             try{
-                data = {ssid: ssid, networkPassword: networkPassword, robotPassword: robotPassword}
+                data = {ssid: ssid, networkPassword: networkPassword}
                 const query = await fetch('/submit', {
                     method: 'POST',
                     headers: {
@@ -54,14 +51,13 @@
         async function SubmitButtonClicked(){
             const ssid = document.getElementById('SSIDInput').value;
             const networkPassword = document.getElementById('networkPasswordInput').value;
-            const robotPassword = document.getElementById('robotPasswordInput').value;
 
-            if(ssid == "" || robotPassword == ""){
-                ShowMessage(false, "Network name and robot password fields cannot be empty");
+            if(ssid == ""){
+                ShowMessage(false, "Network name field cannot be empty");
                 return;
             }
 
-            await SendQuery(ssid, networkPassword, robotPassword);
+            await SendQuery(ssid, networkPassword);
         }
     </script>
 

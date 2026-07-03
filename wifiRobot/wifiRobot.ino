@@ -135,9 +135,6 @@ class Button{
 String ssid;
 String password;
 
-//some constant password for security reasons
-const String robotPassword = "ILN367";
-
 //external server info for communication
 WebSocketsClient ws;
 const char* serverIp = "172.20.10.10";
@@ -190,6 +187,7 @@ void ConnectToServer(){
   Serial.println("WiFi connected.");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
+  commDiode.Stop();
 
   //connecting to api websocket for camera streaming
   ws.begin(serverIp, serverPort, serverPath);
@@ -213,24 +211,15 @@ void handleSubmit(){
   String body = server.arg("plain");
   String response = "";
   JsonDocument docIncoming;
-  DeserializationError deserErr = deserializeJson(docIncoming, body);
-  bool err = false;
-  if(deserErr){
+  DeserializationError err = deserializeJson(docIncoming, body);
+  if(err){
     response = "Couldn't parse json";
-    err = true;
     ErrorMessage(response);
   }
   else{
     ssid = String(docIncoming["ssid"]);
     password = String(docIncoming["networkPassword"]);
-    String rbPassword = String(docIncoming["robotPassword"]);
-    if(rbPassword != robotPassword){
-      response = "Wrong robot password, try again";
-      err = true;
-    }
-    else{
-      response = "Robot got your network data, connecting to wifi. This server will be closed";
-    }
+    response = "Robot got your network data, connecting to wifi. This server will be closed";
   }
 
   JsonDocument docResponding;
