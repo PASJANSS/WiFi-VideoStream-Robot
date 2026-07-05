@@ -7,14 +7,15 @@
 #include "camera_pins.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>
 
 class Camera{
   public:
     unsigned long last = 0;
     int sendDelay;
-    WebSocketsClient ws;
+    WebSocketsClient* ws;
     Camera(){}
-    Camera(int _sendDelay, WebSocketsClient _ws){
+    Camera(int _sendDelay, WebSocketsClient* _ws){
       sendDelay = _sendDelay;
       ws = _ws;
     }
@@ -58,7 +59,7 @@ class Camera{
         return;
       last = now;
       camera_fb_t * fb = esp_camera_fb_get();
-      ws.sendBIN(fb->buf, fb->len);
+      ws->sendBIN(fb->buf, fb->len);
       esp_camera_fb_return(fb);
     }
 };
@@ -80,6 +81,7 @@ class Diode{
       blink = true;
       shot = false;
       state = false;
+      last = millis();
       Light(state);
       cycle = _cycle;
     }
@@ -88,6 +90,7 @@ class Diode{
       blink = false;
       shot = true;
       state = true;
+      last = millis();
       Light(state);
       cycle = _cycle;
     }
@@ -119,17 +122,27 @@ class Diode{
 class Button{
   public:
     int pin;
+    unsigned long antiSpam = 5000;
+    unsigned long last = -5000;
     Button(){}
     Button(int _pin){
       pin = _pin;
     }
 
     bool isClicked(){
+      unsigned long now = millis();
+      if(now - last < antiSpam) 
+        return false;
       if(digitalRead(pin) == HIGH)
+      {
+        last = now;
         return true;
+      }
       return false;
     }
 };
+
+Preferences prefs;
 
 //filled by user in captive portal
 String ssid;
@@ -141,6 +154,8 @@ const char* serverIp = "172.20.10.10";
 const int serverPort = 8080;
 const char* serverPath = "/ws/robot";
 
+const unsigned long wifiTimeout = 10000;
+
 //my own internal server info
 IPAddress apIP(192, 168, 4, 1);
 DNSServer dnsServer;
@@ -151,8 +166,8 @@ Diode errDiode, commDiode;
 
 Camera cam;
 
-Button disconnectBtn;
-int disconnectBtnPin = D8;
+Button button;
+int buttonPin = D8;
 
 void ErrorMessage(String msg){
   Serial.println(msg);
@@ -165,8 +180,11 @@ void ConnectToServer(){
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   bool foundSSID = false;
+  unsigned long startLoop = millis();
   //look for ssid inserted by user in captive portal
   do{
+    if(millis() - startLoop > wifiTimeout)
+      break;
     int n = WiFi.scanNetworks();
     Serial.println(n);
     for(int i = 0; i < n; i++){
@@ -177,11 +195,24 @@ void ConnectToServer(){
     delay(1000);
   }while(!foundSSID);
 
+  if(!foundSSID){
+    CaptivePortal();
+    return;
+  }
+
   //connect to the network pointed by user in captive portal
+  startLoop = millis();
+  WiFi.disconnect();
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
+    if(millis() - startLoop > wifiTimeout)
+      break;
     delay(500);
     Serial.print(".");
+  }
+  if(WiFi.status() != WL_CONNECTED){
+    CaptivePortal();
+    return;
   }
   Serial.println("");
   Serial.println("WiFi connected.");
@@ -189,9 +220,13 @@ void ConnectToServer(){
   Serial.println(WiFi.localIP());
   commDiode.Stop();
 
+  prefs.begin("wifi", false);
+  prefs.putString("ssid", ssid);
+  prefs.putString("password", password);
+  prefs.end();
+
   //connecting to api websocket for camera streaming
   ws.begin(serverIp, serverPort, serverPath);
-  Serial.println(ws.isConnected());
   ws.onEvent(WsEvent);
 }
 
@@ -247,7 +282,7 @@ void CaptivePortal(){
     return;
   }
   Serial.println("File system running");
-
+  WiFi.disconnect();
   //showing own wifi for user to connect to
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
@@ -285,6 +320,10 @@ void WsEvent(WStype_t type, uint8_t* payload, size_t length){
   String message = (char*)payload;
   if(type == WStype_TEXT)
     Move(message[0]);
+  if(type == WStype_CONNECTED)
+    Serial.println("WS connected!");
+  if(type == WStype_DISCONNECTED)
+    Serial.println("WS disconnected!");
 }
 
 void setup(){
@@ -293,14 +332,23 @@ void setup(){
   //setting up diodes
   errDiode = Diode(errDiodePin);
   commDiode = Diode(commDiodePin);
+  
+  button = Button(buttonPin);
 
-  //setting up captive portal and server
-  CaptivePortal();
+  //trying to connect to remembered network. if it does not exist then i enable captive portal
+  prefs.begin("wifi", true);
+  if(prefs.isKey("ssid")){
+    ssid = prefs.getString("ssid");
+    password = prefs.getString("password");
+    prefs.end();
+    ConnectToServer();
+  }
+  else{
+    CaptivePortal();
+  }
 
-  cam = Camera(33, ws);
+  cam = Camera(33, &ws);
   cam.Start();
-
-  disconnectBtn = Button(disconnectBtnPin);
 }
 
 void loop(){
@@ -311,7 +359,7 @@ void loop(){
   cam.Update();
   errDiode.Update();
   commDiode.Update();
-  if(disconnectBtn.isClicked()){
-    ws.sendTXT("disconnect");
+  if(button.isClicked()){
+    CaptivePortal();
   }
 }
