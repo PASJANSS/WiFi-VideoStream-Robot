@@ -50,9 +50,6 @@ async def clientInput(input):
         return
     await robotWs.send_text(input)
 
-def disconnectClient():
-    clientWs.close()
-
 #robot section
 @app.websocket("/ws/robot")
 async def robot_endpoint(ws: WebSocket):
@@ -66,13 +63,7 @@ async def robot_endpoint(ws: WebSocket):
 
     try:
         while True:
-            data = await ws.receive();
-            if "bytes" in data:
-                lastFrame = await ws.receive_bytes() #odbieram to co robot mi mowi
-            elif "text" in data:
-                message = data["text"]
-                if message == "disconnect":
-                    disconnectClient()
+            lastFrame = await ws.receive_bytes() #odbieram to co robot mi mowi
     except WebSocketDisconnect:
         isRobotConnected = False
         robotWs = None
