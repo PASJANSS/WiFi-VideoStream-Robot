@@ -27,13 +27,66 @@ async function connectToServer(){
     ws.onerror = (error) => {};
 }
 
-const inputChars = ['a', 's', 'd', 'w', 'q', 'e']
+const inputKeys = ['a', 's', 'd', 'w', 'q', 'e']
+const cancel = new Map([
+  ['w', ['a', 's', 'd']],
+  ['a', ['d']],
+  ['d', ['a']],
+  ['s', ['w']],
+  ['e', ['q']],
+  ['q', ['e']],
+])
+
+let pressedButtons = []
+let lastSentMessage = null;
+function buttonsChanged(){
+    let usedButtons = []
+    let independent = []
+    pressedButtons.forEach(key => {
+        let incl = false;
+        cancel.get(key).forEach(cancelKey => {
+            if(pressedButtons.includes(cancelKey)){
+                incl = true;
+                break;
+            }
+        });
+        if((key == 'q' || key == 'e') && !incl) 
+            independent.push(key);
+        else if(!incl)
+            usedButtons.push(key);
+    });
+
+    let wsad = '', head = '';
+
+    usedButtons.forEach(key => {
+        wsad += key;
+    });
+    independent.forEach(key => {
+        head += key;
+    })
+
+    message = JSON.stringify({wsad: wsad, head: head});
+    if(message == lastSentMessage)
+        return;
+    lastSentMessage = message;
+    console.log(message);
+    //ws.send(message);
+}
+
 onMount(() => {
     window.addEventListener('keydown', async (event) => {
-        if(inputChars.includes(event.key) && isWsOpened){
-            console.log("sending");
-            ws.send((event.key).toString());
-        }
+        if(!inputKeys.includes(event.key) || !isWsOpened)
+            return;
+
+        pressedButtons.push(event.key);
+        buttonsChanged();
+    })
+    window.addEventListener('keyup', async (event) => {
+        if(!inputKeys.includes(event.key) || !isWsOpened)
+            return;
+
+        pressedButtons.splice(pressedButtons.indexOf(event.key));
+        buttonsChanged();
     })
 });
 

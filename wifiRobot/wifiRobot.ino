@@ -9,6 +9,40 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 
+class DCMotor{
+  public:
+    int pin1, pin2;
+
+    DCMotor(){}
+    DCMotor(int _pin1, int _pin2){
+      pin1 = _pin1;
+      pin2 = _pin2;
+    }
+
+    void assign(){
+      pinMode(pin1, OUTPUT);
+      pinMode(pin2, OUTPUT);
+    }
+
+    void run(bool backwards = false){
+      if(backwards)
+      {
+        digitalWrite(pin1, HIGH);
+        digitalWrite(pin2, LOW);
+      }
+      else
+      {
+        digitalWrite(pin1, LOW);
+        digitalWrite(pin2, HIGH);
+      }
+    }
+
+    void stop(){
+      digitalWrite(pin1, LOW);
+      digitalWrite(pin2, LOW);
+    }
+};
+
 class Camera{
   public:
     unsigned long last = 0;
@@ -169,6 +203,8 @@ Camera cam;
 Button button;
 int buttonPin = D8;
 
+DCMotor leftMotor = DCMotor(D0, D1), rightMotor = DCMotor(D2, D3);
+
 void ErrorMessage(String msg){
   Serial.println(msg);
   errDiode.Shot();
@@ -312,14 +348,40 @@ void CaptivePortal(){
   Serial.println("Server running");
 }
 
-void Move(char key){
+bool isRunning = false;
+char lastKey;
+void Move(String key){
   Serial.println(String("got key ") + key);
+  if(key == "n" && isRunning) //NO MOVE
+  {
+    isRunning = false;
+    leftMotor.stop();
+    rightMotor.stop();
+  }
+  if(isRunning && lastKey == key)
+    return;
+
+  isRunning = true;
+  lastKey = key;
+  switch(key){
+    case "w":
+      leftMotor.run();
+      rightMotor.run();
+      break;
+    case "s":
+      leftMotor.run(true);
+      rightMotor.run(true);
+    case "a":
+      rightMotor.run();
+    case "d":
+      leftMotor.run();
+  }
 }
 
 void WsEvent(WStype_t type, uint8_t* payload, size_t length){
   String message = (char*)payload;
   if(type == WStype_TEXT)
-    Move(message[0]);
+    Move(message);
   if(type == WStype_CONNECTED)
     Serial.println("WS connected!");
   if(type == WStype_DISCONNECTED)
@@ -334,6 +396,9 @@ void setup(){
   commDiode = Diode(commDiodePin);
   
   button = Button(buttonPin);
+
+  leftMotor.assign();
+  rightMotor.assign();
 
   //trying to connect to remembered network. if it does not exist then i enable captive portal
   prefs.begin("wifi", true);
