@@ -42,22 +42,23 @@ let lastSentMessage = null;
 function buttonsChanged(){
     let usedButtons = []
     let independent = []
-    pressedButtons.forEach(key => {
+    for(const key of pressedButtons){
         let incl = false;
-        cancel.get(key).forEach(cancelKey => {
+        for(const cancelKey of cancel.get(key)){
             if(pressedButtons.includes(cancelKey)){
                 incl = true;
                 break;
             }
-        });
+        }
         if((key == 'q' || key == 'e') && !incl) 
             independent.push(key);
         else if(!incl)
             usedButtons.push(key);
-    });
+    }
 
     let wsad = '', head = '';
-
+    usedButtons.sort();
+    independent.sort();
     usedButtons.forEach(key => {
         wsad += key;
     });
@@ -65,7 +66,8 @@ function buttonsChanged(){
         head += key;
     })
 
-    message = JSON.stringify({wsad: wsad, head: head});
+    let message = JSON.stringify({wsad: wsad, head: head});
+
     if(message == lastSentMessage)
         return;
     lastSentMessage = message;
@@ -75,23 +77,22 @@ function buttonsChanged(){
 
 onMount(() => {
     window.addEventListener('keydown', async (event) => {
-        if(!inputKeys.includes(event.key) || !isWsOpened)
+        if(!inputKeys.includes(event.key) || event.repeat) // || !isWsOpened
             return;
 
         pressedButtons.push(event.key);
         buttonsChanged();
     })
     window.addEventListener('keyup', async (event) => {
-        if(!inputKeys.includes(event.key) || !isWsOpened)
+        if(!inputKeys.includes(event.key)) // || !isWsOpened
             return;
-
-        pressedButtons.splice(pressedButtons.indexOf(event.key));
+        pressedButtons.splice(pressedButtons.indexOf(event.key), 1);
         buttonsChanged();
     })
 });
 
 async function submitButtonClicked(){
-    if(password != "ILN367") return;
+    //if(password != "ILN367") return;
     passwordPassed = true;
     await connectToServer();
 }

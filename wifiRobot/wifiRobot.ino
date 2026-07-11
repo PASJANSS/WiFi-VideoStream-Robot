@@ -12,6 +12,7 @@
 class DCMotor{
   public:
     int pin1, pin2;
+    int running = 0; //0->NO, 1->YES, 2->BACKWARDS
 
     DCMotor(){}
     DCMotor(int _pin1, int _pin2){
@@ -25,6 +26,8 @@ class DCMotor{
     }
 
     void run(bool backwards = false){
+      if((run == 1 && !backwards) || (run == 2 && backwards))
+        return;
       if(backwards)
       {
         digitalWrite(pin1, HIGH);
@@ -38,6 +41,8 @@ class DCMotor{
     }
 
     void stop(){
+      if(run == 0)
+        return;
       digitalWrite(pin1, LOW);
       digitalWrite(pin2, LOW);
     }
@@ -348,22 +353,14 @@ void CaptivePortal(){
   Serial.println("Server running");
 }
 
-bool isRunning = false;
-char lastKey;
-void Move(String key){
-  Serial.println(String("got key ") + key);
-  if(key == "n" && isRunning) //NO MOVE
+void Move(String head, String wsad){
+  if(wsad == "") //NO MOVE
   {
-    isRunning = false;
     leftMotor.stop();
     rightMotor.stop();
   }
-  if(isRunning && lastKey == key)
-    return;
 
-  isRunning = true;
-  lastKey = key;
-  switch(key){
+  switch(wsad){
     case "w":
       leftMotor.run();
       rightMotor.run();
@@ -373,15 +370,33 @@ void Move(String key){
       rightMotor.run(true);
     case "a":
       rightMotor.run();
+      leftMotor.stop();
     case "d":
       leftMotor.run();
+      rightMotor.stop();
+    case "as":
+      rightMotor.run(true);
+      leftMotor.stop();
+    case "ds":
+      leftMotor.run(true);
+      rightMotor.stop();
   }
 }
 
 void WsEvent(WStype_t type, uint8_t* payload, size_t length){
-  String message = (char*)payload;
+  JsonDocument message;
+  DeserializationError err = deserializeJson(message, (char*)payload);
+  String head = "", wsad = "";
+  if(err){
+    ErrorMessage("Couldn't parse json");
+    return;
+  }
+  else{
+    head = String(message["head"]);
+    wsad = String(message["wsad"]);
+  }
   if(type == WStype_TEXT)
-    Move(message);
+    Move(head, wsad);
   if(type == WStype_CONNECTED)
     Serial.println("WS connected!");
   if(type == WStype_DISCONNECTED)
