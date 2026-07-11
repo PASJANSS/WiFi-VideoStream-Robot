@@ -9,6 +9,61 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 
+class StepMotor{
+  public:
+    int pins[];
+    int steps[4][4] = {
+      {1, 0, 0, 1},
+      {0, 0, 1, 1},
+      {0, 1, 1, 0},
+      {1, 1, 0, 0}
+    };
+    int currentStep = 0;
+    int direction = 0;
+    int speed = 3;
+    bool isRunning = false;
+    
+    StepMotor(){}
+    StepMotor(int _pins[]){
+      pins = _pins;
+    }
+
+    void run(bool backwards){
+      if(backwards)
+        direction = -1;
+      else
+        direction = 1;
+      isRunning = true;
+    }
+
+    void stop(){
+      direction = 0;
+      isRunning = false;
+    }
+
+    void assign() {
+      for(int i = 0; i < 4; i++)
+        pinMode(pins[i], OUTPUT);
+    }
+
+    void step() {
+      currentStep = (currentStep + direction + 4) % 4;
+      for(int i = 0; i < 4; i++)
+        digitalWrite(pins[i], steps[currentStep][i]);
+    }
+
+    unsigned long lastUpdate = 0;
+    void Update(){
+      if(!isRunning)
+        return;
+      unsigned long now = millis();
+      if(now - lastUpdate < speed)
+        return;
+      lastUpdate = now;
+      step();
+    }
+}
+
 class DCMotor{
   public:
     int pin1, pin2;
@@ -209,6 +264,8 @@ Button button;
 int buttonPin = D8;
 
 DCMotor leftMotor = DCMotor(D0, D1), rightMotor = DCMotor(D2, D3);
+
+StepMotor headMotor = StepMotor(D4, D6, D5, D7);
 
 void ErrorMessage(String msg){
   Serial.println(msg);
@@ -414,6 +471,7 @@ void setup(){
 
   leftMotor.assign();
   rightMotor.assign();
+  headMotor.assign();
 
   //trying to connect to remembered network. if it does not exist then i enable captive portal
   prefs.begin("wifi", true);
@@ -439,6 +497,7 @@ void loop(){
   cam.Update();
   errDiode.Update();
   commDiode.Update();
+  headMotor.Update();
   if(button.isClicked()){
     CaptivePortal();
   }
